@@ -51,3 +51,65 @@ class Momentum:
             self.velocity[i]['bias'] = self.momentum * self.velocity[i]['bias'] - self.learning_rate * gradient[i]['bias']
             parameter[i]['weight'] += self.velocity[i]['weight']
             parameter[i]['bias'] += self.velocity[i]['bias']
+
+class AdaGrad:
+    """AdaGrad algorithm (Duchi et al., 2011)
+    Require: Global learning rate ε
+    Require: Initial parameter θ.
+    Require: Small constant δ, usually 10^-7, for numerical stability
+    Algorithm: 
+        Initialize gradient accumulation variable r = 0 \n
+        while stopping criterion not met do \n
+        \t    Sample a minibatch of m examples from the training set {x_1,...,x_m} with coresponding targets y_i \n
+        \t    Compute gradient: g ← (1/m)*∇_θSum(L(f(x;θ),y)) \n
+        \t    Accumulate squared gradient: r ← r + g☉g \n
+        \t    Compute parameter update:  ∆θ ← -(ε/(δ +sqrt(r)))☉g \n
+        \t    Apply update: θ ← θ + ∆θ \n
+        end while
+    """
+    def __init__(self, learning_rate=0.01):
+        self.learning_rate = learning_rate
+        self.δ = 10e-7
+        self.r = None
+    
+    def optimize(self, parameter, gradient):
+        if self.r is None:
+            self.r = {}
+            for i in parameter:
+                self.r[i] = {'weight': np.zeros(parameter[i]['weight'].shape), 'bias': np.zeros(parameter[i]['bias'].shape)}
+        for i in parameter:
+            self.r[i]['weight'] += np.square(gradient[i]['weight'])
+            self.r[i]['bias'] += np.square(gradient[i]['bias'])
+            parameter[i]['weight'] -= np.multiply(self.learning_rate/(self.δ + np.sqrt(self.r[i]['weight'])), gradient[i]['weight'])
+            parameter[i]['bias'] -= np.multiply(self.learning_rate/(self.δ + np.sqrt(self.r[i]['bias'])), gradient[i]['bias'])
+
+class RMSProp(AdaGrad):
+    """The RMSProp algorithm (Hinton, 2012)
+    This algorithm modiﬁes AdaGrad to perform better in the non-convex setting by changing the gradient accumulation into an exponentially weighted moving average.
+    Require: Global learning rate ε, decay rate ρ.
+    Require: Initial parameter θ.
+    Require: Small constant δ, usually 10^-6, used to stabilize divition by small numbers
+    Algorithm: 
+        Initialize accumulation variables γ = 0 \n
+        while stopping criterion not met do \n
+        \t    Sample a minibatch of m examples from the training set {x_1,...,x_m} with coresponding targets y_i \n
+        \t    Compute gradient: g ← (1/m)*∇_θSum(L(f(x;θ),y)) \n
+        \t    Accumulate squared gradient: γ ← ργ + (1-ρ)g☉g \n
+        \t    Compute parameter update:  ∆θ ← -(ε/δ+sqrt(γ))☉g \n
+        \t    Apply update: θ ← θ + ∆θ \n
+        end while
+    """
+    def __init__(self, learning_rate=0.01, decay_rate=0.9):
+        super().__init__(learning_rate)
+        self.decay_rate = decay_rate
+
+    def optimize(self, parameter, gradient):
+        if self.r is None:
+            self.r = {}
+            for i in parameter:
+                self.r[i] = {'weight': np.zeros(parameter[i]['weight'].shape), 'bias': np.zeros(parameter[i]['bias'].shape)}
+        for i in parameter:
+            self.r[i]['weight'] = self.decay_rate*self.r[i]['weight'] + (1.0-self.decay_rate)*np.square(gradient[i]['weight'])
+            self.r[i]['bias'] = self.decay_rate*self.r[i]['bias'] + (1.0-self.decay_rate)*np.square(gradient[i]['bias'])
+            parameter[i]['weight'] -= np.multiply(self.learning_rate/(self.δ + np.sqrt(self.r[i]['weight'])), gradient[i]['weight'])
+            parameter[i]['bias'] -= np.multiply(self.learning_rate/(self.δ + np.sqrt(self.r[i]['bias'])), gradient[i]['bias'])
